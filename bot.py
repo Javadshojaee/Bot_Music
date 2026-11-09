@@ -1,15 +1,20 @@
 import os
 import asyncio
 import imageio_ffmpeg
+from flask import Flask, request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 import yt_dlp
 from telegram.request import HTTPXRequest
 
+# توکن و رمز عبور
 TOKEN = '9009932540:AAHdMhc-6gMyPrwm8WEI_MCnu0RgVTQPIPU'
 SECRET_PASSWORD = "IHf23sP"
 
 authenticated_users = set()
+
+# راه‌اندازی Flask برای Webhook روی Render
+app_flask = Flask(__name__)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -91,7 +96,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await status_msg.edit_text("📤 در حال آپلود موزیک توی تلگرام...")
         
-        # ارسال فایل صوتی با تایم‌اوت اختصاصی و بالا برای جلوگیری از Timed out
         with open(file_path, 'rb') as audio_file:
             await context.bot.send_audio(
                 chat_id=chat_id,
@@ -113,16 +117,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(f"Error: {e}")
         await status_msg.edit_text(f"❌ خطا در دانلود یا آپلود: {str(e)[:100]}")
 
-def main():
-    print("🤖 بات پایتونی روشن شد، عمو جواد آماده باش!")
-    
-    request = HTTPXRequest(connect_timeout=60.0, read_timeout=300.0, write_timeout=300.0)
-    app = ApplicationBuilder().token(TOKEN).request(request).build()
+# تنظیم اپلیکیشن تلگرام و اتصال به وب‌هوک
+request_opts = HTTPXRequest(connect_timeout=60.0, read_timeout=300.0, write_timeout=300.0)
+telegram_app = ApplicationBuilder().token(TOKEN).request(request_opts).build()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+telegram_app.add_handler(CommandHandler("start", start))
+telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    app.run_polling()
+@app_flask.route('/')
+def home():
+    return "Bot is active and running!"
+
+@app_flask.route(f"/{TOKEN}", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), telegram_app.bot)
+    asyncio.run(telegram_app.process_update(update))
+    return "OK", 200
+
+async def setup_webhook():
+    RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL")
+    if RENDER_URL:
+        webhook_url = f"{RENDER_URL}/{TOKEN}"
+        await telegram_app.bot.set_webhook(webhook_url)
+        print(f"✅ Webhook set to: {webhook_url}")
 
 if __name__ == '__main__':
-    main()
+    asyncio.get_event_loop().run_until_complete(telegram_app.initialize())
+    asyncio.get_event_loop().run_until_complete(setup_webhook())
+    asyncio.get_event_loop().run_until_complete(telegram_app.start())
+    
+    port = int(os.environ.get("PORT", 10000))
+    app_flask.run(host="0.0.0.0", port=port)
