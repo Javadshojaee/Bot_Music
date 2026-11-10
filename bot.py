@@ -1,3 +1,4 @@
+
 import os
 import asyncio
 import imageio_ffmpeg
@@ -41,13 +42,6 @@ def download_audio(query: str):
         'retries': 20,
         'quiet': False,
         'noplaylist': True,
-        'nocheckcertificate': True,
-        # اضافه شدن تنظیمات برای دور زدن تشخیص ربات یوتیوب
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'ios', 'web_safari'],
-            }
-        },
     }
 
     try:
