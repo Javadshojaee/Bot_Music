@@ -1,7 +1,7 @@
 import os
 import asyncio
 import imageio_ffmpeg
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 import yt_dlp
 from telegram.request import HTTPXRequest
@@ -11,13 +11,20 @@ SECRET_PASSWORD = "IHf23sP"
 
 authenticated_users = set()
 
+# دکمه شروع مجدد به عنوان کیبورد آماده
+restart_keyboard = ReplyKeyboardMarkup([["🔄 شروع مجدد"]], resize_keyboard=True)
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    authenticated_users.discard(user_id) # خارج کردن کاربر از حالت تایید شده
+    user = update.effective_user
+    user_id = user.id
+    first_name = user.first_name or "کاربر گرامی"
+
+    authenticated_users.discard(user_id)  # خارج کردن کاربر از حالت تایید شده
     
     await update.message.reply_text(
-        "سلام عمو جواد عزیز! 🎵\n"
-        "برای استفاده از بات، لطفاً ابتدا رمز عبور خود را وارد کنید:"
+        f"سلام {first_name} عزیز! 🎵\n"
+        "برای استفاده از ربات، لطفاً ابتدا رمز عبور خود را وارد کنید:",
+        reply_markup=ReplyKeyboardRemove()  # حذف کیبورد در صورت وجود قبلی
     )
 
 def download_audio(query: str):
@@ -63,16 +70,21 @@ def download_audio(query: str):
         raise e
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    user = update.effective_user
+    user_id = user.id
+    first_name = user.first_name or "کاربر گرامی"
     text = update.message.text
 
     if not text:
         return
 
-    # اگر کاربر خواست ریست کنه و از اول شروع کنه
-    if text.strip() in ["شروع مجدد", "خروج", "reset"]:
+    # اگر کاربر دکمه ریست رو زد یا نوشت شروع مجدد
+    if text.strip() in ["🔄 شروع مجدد", "شروع مجدد", "خروج", "reset"]:
         authenticated_users.discard(user_id)
-        await update.message.reply_text("🔄 وضعیت شما ریست شد. لطفاً رمز عبور خود را وارد کنید:")
+        await update.message.reply_text(
+            f"🔄 وضعیت شما ریست شد، {first_name}.\nلطفاً رمز عبور خود را وارد کنید:",
+            reply_markup=ReplyKeyboardRemove()
+        )
         return
 
     # بررسی رمز عبور
@@ -80,16 +92,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if text.strip() == SECRET_PASSWORD:
             authenticated_users.add(user_id)
             await update.message.reply_text(
-                "✅ رمز عبور با موفقیت تایید شد!\n"
-                "حالا اسم آهنگ یا لینکشو بفرست تا برات دانلودش کنم و بفرستم! 🚀\n"
-                "(هر وقت خواستی خارج بشی کافیه بنویسی: شروع مجدد)"
+                f"✅ خوش آمدید {first_name}! رمز عبور تایید شد.\n\n"
+                "حالا اسم آهنگ یا لینکش رو بفرست تا برات دانلود کنم و بفرستم! 🚀\n"
+                "هر وقت خواستی خارج بشی، دکمه «🔄 شروع مجدد» رو از پایین لمس کن.",
+                reply_markup=restart_keyboard
             )
         else:
             await update.message.reply_text("❌ رمز عبور اشتباه است! لطفاً رمز صحیح را وارد کنید:")
         return
 
     chat_id = update.effective_chat.id
-    status_msg = await update.message.reply_text("🔍 دارم با سرعت دنبال آهنگ می‌گردم، صبور باش عمو جواد...")
+    status_msg = await update.message.reply_text(f"🔍 در حال جستجوی آهنگ، لطفاً صبور باشید {first_name}...")
 
     try:
         loop = asyncio.get_running_loop()
@@ -97,7 +110,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         file_path = audio_info['filepath']
 
-        await status_msg.edit_text("📤 در حال آپلود موزیک توی تلگرام...")
+        await status_msg.edit_text("📤 در حال آپلود موزیک در تلگرام...")
         
         with open(file_path, 'rb') as audio_file:
             await context.bot.send_audio(
@@ -121,7 +134,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await status_msg.edit_text(f"❌ خطا در دانلود یا آپلود: {str(e)[:100]}")
 
 def main():
-    print("🤖 بات پایتونی روشن شد، عمو جواد آماده باش!")
+    print("🤖 ربات تلگرام با موفقیت اجرا شد!")
     
     request = HTTPXRequest(connect_timeout=60.0, read_timeout=300.0, write_timeout=300.0)
     app = ApplicationBuilder().token(TOKEN).request(request).build()
