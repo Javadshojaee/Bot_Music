@@ -1,5 +1,4 @@
-   python-telegram-bot
-   yt-dlp
-   imageio-ffmpeg
-   Flask
-   httpx
+python-telegram-bot
+yt-dlp
+imageio-ffmpeg
+httpx
